@@ -2,12 +2,10 @@
 
 namespace Fateh\Phonsee\Http\Controllers;
 
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Google_Client;
 use Google_Service_Drive;
-use Illuminate\Http\Request;
 
 class FatehController
 {
@@ -48,15 +46,22 @@ class FatehController
         $fileName = $dbName . '_backup.sql';
 
         $this->setFileName($fileName);
+        $backupFile = __DIR__ . '/../../storage/backups/' . $this->getFileName();
 
-        $backupFile = storage_path('app/' . $fileName);
+        if (!is_dir(__DIR__ . '/../../storage/backups')) {
+            mkdir(__DIR__ . '/../../storage/backups', 0777, true);
+        }
+
+        if (!file_exists($backupFile)) {
+            $fileHandle = fopen($backupFile, 'w');
+            if ($fileHandle) {
+                fwrite($fileHandle, '');
+                fclose($fileHandle);
+            }
+        }
 
         $command = "mysqldump -h {$dbHost} -u {$dbUser} -p{$dbPass} {$dbName} > {$backupFile}";
         system($command);
-
-        if (!file_exists($backupFile)) {
-            throw new \Exception('Database backup failed.');
-        }
     }
 
     protected function uploadToGoogleDrive()
@@ -64,7 +69,7 @@ class FatehController
         $client = $this->getGoogleClient();
         $service = new Google_Service_Drive($client);
 
-        $filePath = storage_path('app/' . $this->getFileName());
+        $filePath =  __DIR__ . '/../../storage/backups/' . $this->getFileName();
         $fileMetadata = new \Google_Service_Drive_DriveFile(['name' => $this->getFileName()]);
         $content = file_get_contents($filePath);
 
@@ -95,7 +100,7 @@ class FatehController
         $client = new Google_Client();
         $client->setApplicationName('Database Backup');
         $client->setScopes(Google_Service_Drive::DRIVE_FILE);
-        $client->setAuthConfig(storage_path('app/google-drive-credentials.json'));
+        $client->setAuthConfig( __DIR__ . '/../../storage/google-drive-credentials.json');
         $client->setAccessType('offline');
 
         return $client;
