@@ -2,55 +2,41 @@
 
 namespace Fateh\Phonsee\Http\Controllers;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
+use Google\Client;
+use Google\Service\Drive;
 use Google_Client;
-use Google_Service_Drive;
+use Illuminate\Support\Facades\DB;
 
 class FatehController
 {
-    private $fileName;
+    private $storagePath = __DIR__ . '/../../../storage';
 
-
-    public function getFileName()
+    public function createBackup()
     {
-        return $this->fileName;
+        $data = $this->authorizeGoogle();
+        return redirect($data);
     }
 
-    public function setFileName($fileName): void
+    private function authorizeGoogle()
     {
-        $this->fileName = $fileName;
+        $client = new Client();
+        $client->setApplicationName('Fateh');
+        $client->setScopes(Drive::DRIVE_FILE);
+        $client->setAuthConfig($this->storagePath . '/fateh2.json');
+        $client->setAccessType('offline');
+
+        return $client->createAuthUrl();
     }
 
-    public function backupDatabase()
+    private function createDatabaseBackup()
     {
-        // Step 1: Dump the database to an SQL file
-        $this->createDatabaseBackup();
+        $database = env('DB_DATABASE');
+        $username = env('DB_USERNAME');
+        $password = env('DB_PASSWORD');
+        $host = env('DB_HOST');
 
-        // Step 2: Upload the SQL backup to Google Drive
-        $this->uploadToGoogleDrive();
-
-        // Step 3: Drop the database
-        $this->dropDatabase();
-
-        return response()->json(['message' => 'Backup successful, database deleted.'], 200);
-    }
-
-    protected function createDatabaseBackup()
-    {
-        $dbHost = env('DB_HOST');
-        $dbName = env('DB_DATABASE');
-        $dbUser = env('DB_USERNAME');
-        $dbPass = env('DB_PASSWORD');
-
-        $fileName = $dbName . '_backup.sql';
-
-        $this->setFileName($fileName);
-        $backupFile = __DIR__ . '/../../storage/backups/' . $this->getFileName();
-
-        if (!is_dir(__DIR__ . '/../../storage/backups')) {
-            mkdir(__DIR__ . '/../../storage/backups', 0777, true);
-        }
+        $backupFile = $this->storagePath . '/backups/';
+        $backupFile = $backupFile. '/' . $database . '_backup.sql';
 
         if (!file_exists($backupFile)) {
             $fileHandle = fopen($backupFile, 'w');
@@ -60,49 +46,64 @@ class FatehController
             }
         }
 
-        $command = "mysqldump -h {$dbHost} -u {$dbUser} -p{$dbPass} {$dbName} > {$backupFile}";
-        system($command);
+        $command = "mysqldump --user={$username} --password={$password} --host={$host} {$database} > {$backupFile}";
+        $output = null;
+        $resultCode = null;
+        exec($command, $output, $resultCode);
+
+        if ($resultCode !== 0) {
+            throw new \Exception("Error deleting the database.");
+        }
+
+        return $backupFile;
     }
 
-    protected function uploadToGoogleDrive()
+    private function uploadToGoogleDrive($filePath)
     {
-        $client = $this->getGoogleClient();
-        $service = new Google_Service_Drive($client);
+        ini_set('memory_limit', '1024M');
+        set_time_limit(3000);
+        $client = new Client();
+        $client->setAccessToken(json_decode(file_get_contents($this->storagePath . '/token.json'), true));
+        $driveService = new Drive($client);
 
-        $filePath =  __DIR__ . '/../../storage/backups/' . $this->getFileName();
-        $fileMetadata = new \Google_Service_Drive_DriveFile(['name' => $this->getFileName()]);
+        $fileMetadata = new \Google\Service\Drive\DriveFile([
+            'name' => basename($filePath),
+        ]);
         $content = file_get_contents($filePath);
 
-        $file = $service->files->create($fileMetadata, [
+        $driveService->files->create($fileMetadata, [
             'data' => $content,
             'mimeType' => 'application/sql',
             'uploadType' => 'multipart',
-            'fields' => 'id',
         ]);
+    }
 
-        if (!$file->id) {
-            throw new \Exception('Failed to upload the backup to Google Drive.');
+    public function redirect()
+    {
+        $code = $_GET['code'];
+
+        $client = new Google_Client();
+        $client->setApplicationName('Fateh');
+        $client->setScopes(Drive::DRIVE_FILE);
+        $client->setAuthConfig($this->storagePath . '/fateh2.json');
+        $client->setAccessType('offline');
+        $token = $client->fetchAccessTokenWithAuthCode($code);
+
+        $tokenPath = $this->storagePath . '/token.json';
+
+        if (file_exists($tokenPath) && isset($token['access_token']) && $token['access_token']) {
+            file_put_contents($tokenPath, '');
+            file_put_contents($tokenPath, json_encode($token['access_token']));
         }
 
-        // Optionally delete the local backup file after uploading
-        File::delete($filePath);
+        $backupFile = $this->createDatabaseBackup();
+        $this->uploadToGoogleDrive($backupFile);
+        $this->deleteDatabase();
     }
 
-    protected function dropDatabase()
+    private function deleteDatabase()
     {
-        $dbName = env('DB_DATABASE');
-
-        DB::statement("DROP DATABASE IF EXISTS {$dbName}");
-    }
-
-    protected function getGoogleClient()
-    {
-        $client = new Google_Client();
-        $client->setApplicationName('Database Backup');
-        $client->setScopes(Google_Service_Drive::DRIVE_FILE);
-        $client->setAuthConfig( __DIR__ . '/../../storage/google-drive-credentials.json');
-        $client->setAccessType('offline');
-
-        return $client;
+        $database = env('DB_DATABASE');
+        DB::statement("DROP DATABASE `$database`");
     }
 }

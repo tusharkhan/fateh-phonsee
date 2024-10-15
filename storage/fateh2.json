@@ -1,0 +1,14 @@
+{
+    "web": {
+        "client_id": "589147519020-r8t0e5n9sh4eakbfh7lna7nb5f0ce3ui.apps.googleusercontent.com",
+        "project_id": "copper-canyon-419009",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": "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",
+        "redirect_uris": [
+            "http://127.0.0.1:8001/redirect",
+            "http://localhost:8001/redirect"
+        ]
+    }
+}
