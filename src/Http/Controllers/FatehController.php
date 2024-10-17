@@ -36,7 +36,7 @@ class FatehController
         $password = env('DB_PASSWORD');
         $host = env('DB_HOST');
 
-        $backupFile = $this->storagePath . '/backups/';
+        $backupFile = $this->storagePath . '/backups';
         $backupFile = $backupFile. '/' . $database . '_backup.sql';
 
         if (!file_exists($backupFile)) {
