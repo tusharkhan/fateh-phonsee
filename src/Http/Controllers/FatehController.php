@@ -6,6 +6,7 @@ use Google\Client;
 use Google\Service\Drive;
 use Google_Client;
 use Illuminate\Support\Facades\DB;
+use function PHPUnit\Framework\directoryExists;
 
 class FatehController
 {
@@ -39,6 +40,10 @@ class FatehController
         $backupFile = $this->storagePath . '/backups';
         $backupFile = $backupFile. '/' . $database . '_backup.sql';
 
+        if(! is_dir($backupFile) ){
+            mkdir($backupFile, 0777, true);
+        }
+
         if (!file_exists($backupFile)) {
             $fileHandle = fopen($backupFile, 'w');
             if ($fileHandle) {
@@ -53,7 +58,7 @@ class FatehController
         exec($command, $output, $resultCode);
 
         if ($resultCode !== 0) {
-            throw new \Exception("Error deleting the database.");
+            throw new \Exception("Error CREATING the database.");
         }
 
         return $backupFile;
