@@ -88,6 +88,7 @@ class FatehController
         $client->setScopes(Drive::DRIVE_FILE);
         $client->setAuthConfig($this->storagePath . '/fateh2.json');
         $client->setAccessType('offline');
+        $client->setRedirectUri(url('redirect'));
         $token = $client->fetchAccessTokenWithAuthCode($code);
 
         $tokenPath = $this->storagePath . '/token.json';
