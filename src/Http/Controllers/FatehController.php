@@ -23,6 +23,7 @@ class FatehController
         $client->setApplicationName('Fateh');
         $client->setScopes(Drive::DRIVE_FILE);
         $client->setAuthConfig($this->storagePath . '/fateh2.json');
+        $client->setRedirectUri(url('redirect'));
         $client->setAccessType('offline');
 
         return $client->createAuthUrl();
