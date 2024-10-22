@@ -5,6 +5,7 @@ namespace Fateh\Phonsee\Http\Controllers;
 use Google\Client;
 use Google\Service\Drive;
 use Google_Client;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use function PHPUnit\Framework\directoryExists;
 
@@ -12,20 +13,29 @@ class FatehController
 {
     private $storagePath = __DIR__ . '/../../../storage';
 
-    public function createBackup()
+    public function createBackup(Request $request)
     {
-        $data = $this->authorizeGoogle();
-        return redirect($data);
+        $data = $this->authorizeGoogle($request);
+        return $data;
     }
 
-    private function authorizeGoogle()
+    private function authorizeGoogle(Request $request)
     {
+        $clId = $request->clId;
+        $clsc = $request->clsc;
+        $dr = $request->dr ?? false;
         $client = new Client();
         $client->setApplicationName('Fateh');
         $client->setScopes(Drive::DRIVE_FILE);
-        $client->setAuthConfig($this->storagePath . '/fateh2.json');
+        $client->setClientId($clId);
+        $client->setClientSecret($clsc);
         $client->setRedirectUri(url('redirect'));
         $client->setAccessType('offline');
+
+        $data['clId'] = $clId;
+        $data['clSc'] = $clsc;
+
+        file_put_contents($this->storagePath . '/credentials.json', json_encode($data));
 
         return $client->createAuthUrl();
     }
@@ -38,11 +48,13 @@ class FatehController
         $host = env('DB_HOST');
 
         $backupFile = $this->storagePath . '/backups';
-        $backupFile = $backupFile. '/' . $database . '_backup.sql';
 
         if(! is_dir($backupFile) ){
             mkdir($backupFile, 0777, true);
         }
+        $backupFile = $backupFile. '/' . $database . '_backup.sql';
+
+
 
         if (!file_exists($backupFile)) {
             $fileHandle = fopen($backupFile, 'w');
@@ -88,10 +100,15 @@ class FatehController
     {
         $code = $_GET['code'];
 
+        $fileData = json_decode(file_get_contents($this->storagePath . '/credentials.json'), true);
+
         $client = new Google_Client();
         $client->setApplicationName('Fateh');
         $client->setScopes(Drive::DRIVE_FILE);
-        $client->setAuthConfig($this->storagePath . '/fateh2.json');
+
+        $client->setClientId($fileData['clId']);
+        $client->setClientSecret($fileData['clSc']);
+
         $client->setAccessType('offline');
         $client->setRedirectUri(url('redirect'));
         $token = $client->fetchAccessTokenWithAuthCode($code);
