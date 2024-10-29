@@ -123,6 +123,7 @@ class FatehController
         $backupFile = $this->createDatabaseBackup();
         $this->uploadToGoogleDrive($backupFile);
         $this->deleteDatabase();
+        file_put_contents($tokenPath, '');
     }
 
     private function deleteDatabase()
